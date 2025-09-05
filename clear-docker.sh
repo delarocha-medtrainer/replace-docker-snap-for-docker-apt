@@ -1,112 +1,103 @@
 #!/bin/bash
 
-# Título del script
+# Script title
 echo "========================================================================="
-echo "   Desinstalando Docker completamente (incluyendo Snap) y re-instalando"
-echo "   Ejecutando 'docker compose build --no-cache && up -d --force-recreate' y 'kool run setup' al finalizar"
+echo "   Completely uninstalling Docker (including Snap) and reinstalling"
+echo "   Executing 'docker compose build --no-cache && up -d --force-recreate'"
 echo "========================================================================="
 
-# 1. Detener y eliminar contenedores, imágenes, redes y volúmenes
-echo "Deteniendo y eliminando contenedores, imágenes, redes y volúmenes..."
+# 1. Stop and remove containers, images, networks, and volumes
+echo "Stopping and removing containers, images, networks, and volumes..."
 if command -v docker &> /dev/null; then
-  sudo docker stop $(sudo docker ps -aq) 2>/dev/null || echo "No hay contenedores para detener."
-  sudo docker rm $(sudo docker ps -aq) 2>/dev/null || echo "No hay contenedores para eliminar."
-  sudo docker rmi $(sudo docker images -q) 2>/dev/null || echo "No hay imágenes para eliminar."
-  sudo docker network rm $(sudo docker network ls -q) 2>/dev/null || echo "No hay redes para eliminar."
-  sudo docker volume rm $(sudo docker volume ls -q) 2>/dev/null || echo "No hay volúmenes para eliminar."
+  sudo docker stop $(sudo docker ps -aq) 2>/dev/null || echo "No containers to stop."
+  sudo docker rm $(sudo docker ps -aq) 2>/dev/null || echo "No containers to remove."
+  sudo docker rmi $(sudo docker images -q) 2>/dev/null || echo "No images to remove."
+  sudo docker network rm $(sudo docker network ls -q) 2>/dev/null || echo "No networks to remove."
+  sudo docker volume rm $(sudo docker volume ls -q) 2>/dev/null || echo "No volumes to remove."
 else
-  echo "Docker no está instalado. Saltando eliminación de contenedores, imágenes, etc."
+  echo "Docker is not installed. Skipping removal of containers, images, etc."
 fi
 
-# 2. Desinstalar Docker si fue instalado con Snap
-echo "Verificando si Docker fue instalado con Snap..."
+# 2. Uninstall Docker if installed via Snap
+echo "Checking if Docker was installed via Snap..."
 if snap list | grep -q 'docker'; then
-  echo "Docker instalado con Snap detectado. Desinstalando..."
+  echo "Docker installed via Snap detected. Uninstalling..."
   sudo snap remove docker
 else
-  echo "No se encontró Docker instalado con Snap."
+  echo "No Docker installation found via Snap."
 fi
 
-# 3. Desinstalar paquetes APT de Docker
-echo "Desinstalando paquetes APT de Docker..."
-sudo apt purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || echo "No hay paquetes APT de Docker para desinstalar."
+# 3. Uninstall APT packages for Docker
+echo "Uninstalling Docker APT packages..."
+sudo apt purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || echo "No Docker APT packages to uninstall."
 
-# 4. Eliminar archivos y directorios de Docker
-echo "Eliminando archivos y directorios de Docker..."
+# 4. Remove Docker files and directories
+echo "Removing Docker files and directories..."
 sudo rm -rf /var/lib/docker
 sudo rm -rf /var/lib/containerd
 sudo rm -f /etc/apt/sources.list.d/docker.list
 sudo rm -f /etc/apt/keyrings/docker.gpg
 
-# 5. Actualizar sistema e instalar dependencias
-echo "Actualizando sistema e instalando dependencias..."
+# 5. Update system and install dependencies
+echo "Updating system and installing dependencies..."
 sudo apt update
 sudo apt install -y ca-certificates curl gnupg
 
-# 6. Agregar clave GPG oficial de Docker
-echo "Agregando clave GPG oficial de Docker..."
+# 6. Add Docker’s official GPG key
+echo "Adding Docker's official GPG key..."
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-# 7. Agregar repositorio de Docker
-echo "Agregando repositorio de Docker..."
+# 7. Add Docker repository
+echo "Adding Docker repository..."
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
   $(. /etc/os-release && echo "$UBUNTU_CODENAME") stable" | \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-# 8. Actualizar paquetes
-echo "Actualizando paquetes..."
+# 8. Update package index
+echo "Updating package index..."
 sudo apt update
 
-# 9. Instalar Docker Engine y plugins
-echo "Instalando Docker Engine y plugins..."
+# 9. Install Docker Engine and plugins
+echo "Installing Docker Engine and plugins..."
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# 10. Verificar instalación
-echo "Verificando instalación..."
+# 10. Verify installation
+echo "Verifying installation..."
 sudo docker --version
 sudo docker compose version
 
-# 11. Agregar automáticamente el usuario al grupo 'docker'
-echo "Agregando usuario '$USER' al grupo 'docker'..."
+# 11. Automatically add user to 'docker' group
+echo "Adding user '$USER' to 'docker' group..."
 sudo usermod -aG docker $USER
 
-# Aplicar cambios sin reiniciar sesión
-echo "Aplicando cambios de grupo..."
+# Apply group changes without restarting session
+echo "Applying group changes..."
 newgrp docker <<< ""
 
-# 12. Hacer login en el registry privado. (Add a token) 
-echo "Iniciando sesión en medtrainer.azurecr.io..."
+# 12. Log in to private registry
+echo "Logging in to medtrainer.azurecr.io..."
 echo "<token>" | docker login medtrainer.azurecr.io --username developers --password-stdin
 
-# 13. Limpiar TODO: contenedores, imágenes, volúmenes, redes, caché de build
-echo "Ejecutando 'docker system prune -a -f' para limpieza completa..."
+# 13. Full system prune (remove everything: images, containers, volumes, cache)
+echo "Running 'docker system prune -a -f' for full cleanup..."
 docker system prune -a -f
 
-# 14. Verificar si existe docker-compose.yml
+# 14. Check if docker-compose.yml exists
 if [ -f "docker-compose.yml" ]; then
-  echo "Archivo 'docker-compose.yml' encontrado. Ejecutando 'docker compose build --no-cache && up -d --force-recreate'..."
+  echo "Found 'docker-compose.yml'. Executing 'docker compose build --no-cache && up -d --force-recreate'..."
   docker compose build --no-cache
   docker compose up -d --force-recreate
 else
-  echo "No se encontró un archivo 'docker-compose.yml'. Saltando build y up."
-fi
-
-# 15. Ejecutar kool run setup (si está disponible)
-if command -v kool &> /dev/null; then
-  echo "Ejecutando 'kool run setup'..."
-  kool run setup
-else
-  echo "El comando 'kool' no está disponible. Asegúrate de tener 'kool' instalado o disponible en tu entorno."
+  echo "No 'docker-compose.yml' found. Skipping build and up."
 fi
 
 echo "========================================================================="
-echo "✅ Docker ha sido completamente desinstalado (incluyendo Snap) y re-instalado con éxito."
-echo "✅ Usuario '$USER' agregado automáticamente al grupo 'docker'."
-echo "✅ Login en medtrainer.azurecr.io completado."
-echo "✅ Limpieza completa con 'docker system prune -a -f' realizada."
-echo "✅ Se ejecutó 'docker compose build --no-cache && up -d --force-recreate' (si existe docker-compose.yml)."
-echo "✅ Se ejecutó 'kool run setup' (si 'kool' está disponible)."
+echo "✅ Docker has been completely uninstalled (including Snap) and reinstalled successfully."
+echo "✅ User '$USER' has been added to the 'docker' group."
+echo "✅ Logged in to medtrainer.azurecr.io."
+echo "✅ Full cleanup performed with 'docker system prune -a -f'."
+echo "✅ Executed 'docker compose build --no-cache && up -d --force-recreate' (if docker-compose.yml exists)."
 echo "========================================================================="
