@@ -79,13 +79,21 @@ newgrp docker <<< ""
 
 # 12. Log in to private registry
 echo "Logging in to medtrainer.azurecr.io..."
-echo "<token>" | docker login medtrainer.azurecr.io --username developers --password-stdin
+echo "<Token>" | docker login medtrainer.azurecr.io --username developers --password-stdin
 
-# 13. Full system prune (remove everything: images, containers, volumes, cache)
+# 13. Bring down current project (if any) and remove its volumes and orphans
+echo "Running 'docker compose down --volumes --remove-orphans' to clean current project..."
+docker compose down --volumes --remove-orphans 2>/dev/null || echo "No active project to bring down."
+
+# 14. Prune unused data (containers, networks, build cache)
+echo "Running 'docker system prune -f' to clean unused data..."
+docker system prune -f
+
+# 15. Full system prune (remove everything: images, containers, volumes, cache)
 echo "Running 'docker system prune -a -f' for full cleanup..."
 docker system prune -a -f
 
-# 14. Check if docker-compose.yml exists
+# 16. Check if docker-compose.yml exists
 if [ -f "docker-compose.yml" ]; then
   echo "Found 'docker-compose.yml'. Executing 'docker compose build --no-cache && up -d --force-recreate'..."
   docker compose build --no-cache
@@ -98,6 +106,7 @@ echo "========================================================================="
 echo "✅ Docker has been completely uninstalled (including Snap) and reinstalled successfully."
 echo "✅ User '$USER' has been added to the 'docker' group."
 echo "✅ Logged in to medtrainer.azurecr.io."
-echo "✅ Full cleanup performed with 'docker system prune -a -f'."
+echo "✅ Project cleaned with 'docker compose down --volumes --remove-orphans'."
+echo "✅ System cleaned with 'docker system prune -f' and 'docker system prune -a -f'."
 echo "✅ Executed 'docker compose build --no-cache && up -d --force-recreate' (if docker-compose.yml exists)."
 echo "========================================================================="
