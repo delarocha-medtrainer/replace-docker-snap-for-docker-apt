@@ -91,8 +91,6 @@ export DOCKER_INSTALLED=true
 export DOCKER_VERSION=$(docker --version 2>/dev/null | cut -d' ' -f3 | tr -d ',')
 EOF
 
-sudo chmod +x /etc/profile.d/docker-detection.sh
-
 # Create fake Snap structure to fool dependency detection
 echo "Creating fake Snap structure to prevent dependency installations..."
 sudo mkdir -p /snap/docker/current/bin
