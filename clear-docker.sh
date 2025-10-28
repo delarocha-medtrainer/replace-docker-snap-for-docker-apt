@@ -3,6 +3,7 @@
 # Script title
 echo "========================================================================="
 echo "   Completely uninstalling Docker (including Snap) and reinstalling"
+echo "   Configuring Docker detection to prevent automatic Snap installations"
 echo "   Executing 'docker compose build --no-cache && up -d --force-recreate'"
 echo "========================================================================="
 
@@ -77,23 +78,58 @@ sudo usermod -aG docker $USER
 echo "Applying group changes..."
 newgrp docker <<< ""
 
-# 12. Log in to private registry
-echo "Logging in to medtrainer.azurecr.io..."
-echo "<Token>" | docker login medtrainer.azurecr.io --username developers --password-stdin
+# 12. Configure Docker detection to prevent automatic Snap installations
+echo "Configuring Docker detection to prevent automatic Snap installations..."
+echo "This creates environment variables and fake Snap structure so applications"
+echo "detect Docker as already installed and don't try to install it via Snap."
+sudo tee /etc/profile.d/docker-detection.sh > /dev/null << 'EOF'
+# Docker detection for applications - prevents Snap installation
+export DOCKER_BINARY=$(which docker)
+export DOCKER_SOCKET=/var/run/docker.sock
+export PATH="/snap/docker/current/bin:$PATH"
+export DOCKER_INSTALLED=true
+export DOCKER_VERSION=$(docker --version 2>/dev/null | cut -d' ' -f3 | tr -d ',')
+EOF
 
-# 13. Bring down current project (if any) and remove its volumes and orphans
+sudo chmod +x /etc/profile.d/docker-detection.sh
+
+# Create fake Snap structure to fool dependency detection
+echo "Creating fake Snap structure to prevent dependency installations..."
+sudo mkdir -p /snap/docker/current/bin
+sudo mkdir -p /snap/docker/current/meta
+
+# Create symlink to real Docker binary
+sudo ln -sf /usr/bin/docker /snap/docker/current/bin/docker
+
+# Create fake metadata file
+sudo tee /snap/docker/current/meta/snap.yaml > /dev/null << 'EOF'
+name: docker
+version: system-redirect
+summary: Docker (system installation)
+description: Redirected to system Docker installation
+architectures: [amd64]
+EOF
+
+# Load the configuration
+source /etc/profile.d/docker-detection.sh
+
+# 13. Log in to private registry
+echo "Logging in to medtrainer.azurecr.io..."
+echo "<Token>" | docker login medtrainer.azurecr.io -u developers -p <password>
+
+# 14. Bring down current project (if any) and remove its volumes and orphans
 echo "Running 'docker compose down --volumes --remove-orphans' to clean current project..."
 docker compose down --volumes --remove-orphans 2>/dev/null || echo "No active project to bring down."
 
-# 14. Prune unused data (containers, networks, build cache)
+# 15. Prune unused data (containers, networks, build cache)
 echo "Running 'docker system prune -f' to clean unused data..."
 docker system prune -f
 
-# 15. Full system prune (remove everything: images, containers, volumes, cache)
+# 16. Full system prune (remove everything: images, containers, volumes, cache)
 echo "Running 'docker system prune -a -f' for full cleanup..."
 docker system prune -a -f
 
-# 16. Check if docker-compose.yml exists
+# 17. Check if docker-compose.yml exists
 if [ -f "docker-compose.yml" ]; then
   echo "Found 'docker-compose.yml'. Executing 'docker compose build --no-cache && up -d --force-recreate'..."
   docker compose build --no-cache
@@ -105,6 +141,7 @@ fi
 echo "========================================================================="
 echo "✅ Docker has been completely uninstalled (including Snap) and reinstalled successfully."
 echo "✅ User '$USER' has been added to the 'docker' group."
+echo "✅ Docker detection configured to prevent automatic Snap installations."
 echo "✅ Logged in to medtrainer.azurecr.io."
 echo "✅ Project cleaned with 'docker compose down --volumes --remove-orphans'."
 echo "✅ System cleaned with 'docker system prune -f' and 'docker system prune -a -f'."
